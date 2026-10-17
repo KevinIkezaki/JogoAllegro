@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="JogoAllegro/JogoAllegro.vcxproj" />
+  <Project Path="JogoAllegro/JogoAllegro.vcxproj" Id="7f6716a4-92a7-4035-a44f-09412aeb0145" />
 </Solution>
