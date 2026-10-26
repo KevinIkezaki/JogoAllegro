@@ -78,6 +78,7 @@ int main(void) {
 
     int vida_jogador = VIDA_MAX_JOGADOR;
     int vida_inimigo = VIDA_MAX_INIMIGO;
+    int invulnerabilidade = 0;
 
     float inimigo_x = 600.0f;
     float inimigo_y = 150.0f;
@@ -142,21 +143,21 @@ int main(void) {
 
             /* MENU: iniciar com ENTER ou ESPACO */
             if (estado == MENU_INICIAL &&
-                (tecla == ALLEGRO_KEY_ENTER ||
-                    tecla == ALLEGRO_KEY_SPACE)) {
+                (tecla == ALLEGRO_KEY_ENTER)) {
 
                 estado = JOGANDO;
             }
             /* Reiniciar depois da vitoria ou derrota */
             else if ((estado == FIM_DE_JOGO ||
                 estado == VITORIA) &&
-                tecla == ALLEGRO_KEY_SPACE) {
+                tecla == ALLEGRO_KEY_ENTER) {
 
                 jogador_x = LARGURA_TELA / 2.0f;
                 jogador_y = ALTURA_TELA / 2.0f;
 
                 vida_jogador = VIDA_MAX_JOGADOR;
                 vida_inimigo = VIDA_MAX_INIMIGO;
+                invulnerabilidade = 0;
 
                 inimigo_x = 600.0f;
                 inimigo_y = 150.0f;
@@ -265,6 +266,34 @@ int main(void) {
                     tempo_recarga--;
                 }
 
+                if (invulnerabilidade > 0) {
+                    invulnerabilidade--;
+                }
+
+                /* Verificar colisao */
+                if (vida_inimigo > 0 && invulnerabilidade == 0) {
+
+                    float distancia_x = jogador_x - inimigo_x;
+                    float distancia_y = jogador_y - inimigo_y;
+
+                    float limite_colisao =
+                        (JOGADOR_TAMANHO + INIMIGO_TAMANHO) / 2.0f;
+
+                    if (distancia_x < limite_colisao &&
+                        distancia_x > -limite_colisao &&
+                        distancia_y < limite_colisao &&
+                        distancia_y > -limite_colisao) {
+
+                        vida_jogador -= 25;
+                        invulnerabilidade = 90;
+
+                        if (vida_jogador <= 0) {
+                            vida_jogador = 0;
+                            estado = FIM_DE_JOGO;
+                        }
+                    }
+                }
+
                 /* Atualizar o inimigo enquanto estiver vivo */
                 if (vida_inimigo > 0) {
 
@@ -350,7 +379,7 @@ int main(void) {
                     fonte, al_map_rgb(0, 255, 100),
                     LARGURA_TELA / 2, 280,
                     ALLEGRO_ALIGN_CENTER,
-                    "ENTER ou ESPACO - Iniciar jogo"
+                    "ENTER - Iniciar jogo"
                 );
 
                 al_draw_text(
@@ -469,7 +498,7 @@ int main(void) {
                     fonte, al_map_rgb(255, 255, 255),
                     LARGURA_TELA / 2, 290,
                     ALLEGRO_ALIGN_CENTER,
-                    "ESPACO - Tentar novamente"
+                    "ENTER - Tentar novamente"
                 );
             }
 
@@ -486,7 +515,7 @@ int main(void) {
                     fonte, al_map_rgb(255, 255, 255),
                     LARGURA_TELA / 2, 290,
                     ALLEGRO_ALIGN_CENTER,
-                    "ESPACO - Jogar novamente"
+                    "ENTER - Jogar novamente"
                 );
             }
 
