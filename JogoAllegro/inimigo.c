@@ -42,7 +42,7 @@ void desenhar_inimigo(float x, float y, float tamanho) {
     al_draw_filled_rectangle(
         x - tamanho / 2, y - tamanho / 2,
         x + tamanho / 2, y + tamanho / 2,
-        al_map_rgb(255, 255, 255)
+        al_map_rgb(184, 40, 91)
     );
 }
 
