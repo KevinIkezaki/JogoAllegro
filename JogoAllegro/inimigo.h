@@ -1,56 +1,40 @@
-
 #ifndef INIMIGO_H
 #define INIMIGO_H
 
 #include <stdbool.h>
 
-void atualizar_inimigo(
-    float* inimigo_x,
-    float* inimigo_y,
-    float jogador_x,
-    float jogador_y,
-    int* tempo_para_atirar,
-    bool* tiro_ativo,
-    float* tiro_x,
-    float* tiro_y,
-    float* tiro_velocidade_x,
-    float* tiro_velocidade_y
-);
+typedef struct {
+    float x, y;
+    float vx, vy;
+    float raio;
+    bool ativo;
+} Projetil;
 
-void desenhar_inimigo(
-    float inimigo_x,
-    float inimigo_y,
-    float inimigo_tamanho
-);
+typedef struct {
+    float x, y;
+    float tamanho;
+    float vel;
+    int vida;
+    int timer_tiro;
+} Inimigo;
 
-void atualizar_tiro(
-    bool* tiro_ativo,
-    float* tiro_x,
-    float* tiro_y,
-    float tiro_velocidade_x,
-    float tiro_velocidade_y,
-    float largura_tela,
-    float altura_tela
-);
+typedef struct {
+    float x, y;
+    float tamanho;
+    float vel;
+    int vida;
+    int invulnerabilidade;
+    float direcao_x;
+    float direcao_y;
+    int tempo_recarga;
+} Jogador;
 
-void desenhar_tiro(bool tiro_ativo, float tiro_x, float tiro_y);
+void atualizar_inimigo(Inimigo* inimigo, Jogador* jogador, Projetil* tiro_inimigo);
+void desenhar_inimigo(Inimigo* inimigo);
 
-bool verificar_colisao(
-    bool tiro_ativo,
-    float tiro_x,
-    float tiro_y,
-    float jogador_x,
-    float jogador_y,
-    float jogador_tamanho
-);
+void atualizar_tiro(Projetil* tiro, float largura_tela, float altura_tela);
+void desenhar_tiro(Projetil* tiro, unsigned char r, unsigned char g, unsigned char b);
 
-bool verificar_colisao_inimigo(
-    bool tiro_ativo,
-    float tiro_x,
-    float tiro_y,
-    float inimigo_x,
-    float inimigo_y,
-    float inimigo_tamanho
-);
+bool verificar_colisao(Projetil* tiro, float alvo_x, float alvo_y, float alvo_tamanho);
 
 #endif

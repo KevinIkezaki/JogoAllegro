@@ -1,82 +1,63 @@
-
 #include "inimigo.h"
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
 
-void atualizar_inimigo(float* inimigo_x, float* inimigo_y,
-    float jogador_x, float jogador_y, int* tempo_para_atirar,
-    bool* tiro_ativo, float* tiro_x, float* tiro_y,
-    float* tiro_velocidade_x, float* tiro_velocidade_y) {
+void atualizar_inimigo(Inimigo* inimigo, Jogador* jogador, Projetil* tiro_inimigo) {
+    if (inimigo->x < jogador->x) inimigo->x += inimigo->vel;
+    if (inimigo->x > jogador->x) inimigo->x -= inimigo->vel;
+    if (inimigo->y < jogador->y) inimigo->y += inimigo->vel;
+    if (inimigo->y > jogador->y) inimigo->y -= inimigo->vel;
 
-    if (*inimigo_x < jogador_x) *inimigo_x += 0.5f;
-    if (*inimigo_x > jogador_x) *inimigo_x -= 0.5f;
-    if (*inimigo_y < jogador_y) *inimigo_y += 0.5f;
-    if (*inimigo_y > jogador_y) *inimigo_y -= 0.5f;
+    inimigo->timer_tiro += 1;
 
-    *tempo_para_atirar += 1;
+    if (inimigo->timer_tiro > 60 && !(tiro_inimigo->ativo)) {
+        tiro_inimigo->ativo = true;
+        tiro_inimigo->x = inimigo->x;
+        tiro_inimigo->y = inimigo->y;
 
-    if (*tempo_para_atirar > 60 && !(*tiro_ativo)) {
-        *tiro_ativo = true;
-        *tiro_x = *inimigo_x;
-        *tiro_y = *inimigo_y;
-
-        float dist_x = jogador_x - *inimigo_x;
-        float dist_y = jogador_y - *inimigo_y;
-        float soma = (dist_x < 0 ? -dist_x : dist_x)
-            + (dist_y < 0 ? -dist_y : dist_y);
+        float dist_x = jogador->x - inimigo->x;
+        float dist_y = jogador->y - inimigo->y;
+        float soma = (dist_x < 0 ? -dist_x : dist_x) + (dist_y < 0 ? -dist_y : dist_y);
 
         if (soma > 0) {
-            *tiro_velocidade_x = (dist_x / soma) * 8.0f;
-            *tiro_velocidade_y = (dist_y / soma) * 8.0f;
+            tiro_inimigo->vx = (dist_x / soma) * 8.0f;
+            tiro_inimigo->vy = (dist_y / soma) * 8.0f;
         }
         else {
-            *tiro_velocidade_x = 0;
-            *tiro_velocidade_y = 0;
+            tiro_inimigo->vx = 0;
+            tiro_inimigo->vy = 0;
         }
 
-        *tempo_para_atirar = 0;
+        inimigo->timer_tiro = 0;
     }
 }
 
-void desenhar_inimigo(float x, float y, float tamanho) {
+void desenhar_inimigo(Inimigo* inimigo) {
     al_draw_filled_rectangle(
-        x - tamanho / 2, y - tamanho / 2,
-        x + tamanho / 2, y + tamanho / 2,
+        inimigo->x - inimigo->tamanho / 2, inimigo->y - inimigo->tamanho / 2,
+        inimigo->x + inimigo->tamanho / 2, inimigo->y + inimigo->tamanho / 2,
         al_map_rgb(184, 40, 91)
     );
 }
 
-void atualizar_tiro(bool* ativo, float* x, float* y,
-    float vx, float vy, float largura, float altura) {
+void atualizar_tiro(Projetil* tiro, float largura, float altura) {
+    if (tiro->ativo) {
+        tiro->x += tiro->vx;
+        tiro->y += tiro->vy;
 
-    if (*ativo) {
-        *x += vx;
-        *y += vy;
-
-        if (*x < 0 || *x > largura || *y < 0 || *y > altura)
-            *ativo = false;
+        if (tiro->x < 0 || tiro->x > largura || tiro->y < 0 || tiro->y > altura)
+            tiro->ativo = false;
     }
 }
 
-void desenhar_tiro(bool ativo, float x, float y) {
-    if (ativo)
-        al_draw_filled_circle(x, y, 5.0f, al_map_rgb(255, 0, 0));
+void desenhar_tiro(Projetil* tiro, unsigned char r, unsigned char g, unsigned char b) {
+    if (tiro->ativo)
+        al_draw_filled_circle(tiro->x, tiro->y, tiro->raio, al_map_rgb(r, g, b));
 }
 
-bool verificar_colisao(bool ativo, float tx, float ty,
-    float jx, float jy, float tamanho) {
+bool verificar_colisao(Projetil* tiro, float alvo_x, float alvo_y, float alvo_tamanho) {
+    if (!tiro->ativo) return false;
 
-    if (!ativo) return false;
-
-    return tx > jx - tamanho / 2 && tx < jx + tamanho / 2
-        && ty > jy - tamanho / 2 && ty < jy + tamanho / 2;
-}
-
-bool verificar_colisao_inimigo(bool ativo, float tx, float ty,
-    float ix, float iy, float tamanho) {
-
-    if (!ativo) return false;
-
-    return tx > ix - tamanho / 2 && tx < ix + tamanho / 2
-        && ty > iy - tamanho / 2 && ty < iy + tamanho / 2;
+    return tiro->x > alvo_x - alvo_tamanho / 2 && tiro->x < alvo_x + alvo_tamanho / 2
+        && tiro->y > alvo_y - alvo_tamanho / 2 && tiro->y < alvo_y + alvo_tamanho / 2;
 }
