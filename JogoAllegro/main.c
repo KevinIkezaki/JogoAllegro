@@ -162,10 +162,19 @@ int main(void) {
                     atualizar_tiro(&tiro_inimigo, LARGURA_TELA, ALTURA_TELA);
 
                     if (verificar_colisao(&tiro_inimigo, jogador.x, jogador.y, jogador.tamanho)) {
-                        jogador.vida -= 25;
                         tiro_inimigo.ativo = false;
-                        if (jogador.vida <= 0) { jogador.vida = 0; estado = FIM_DE_JOGO; }
+
+                        if (jogador.invulnerabilidade == 0) {
+                            jogador.vida -= 25;
+                            jogador.invulnerabilidade = 90;
+
+                            if (jogador.vida <= 0) {
+                                jogador.vida = 0;
+                                estado = FIM_DE_JOGO;
+                            }
+                        }
                     }
+
                 }
 
                 /* Acoes do Tiro do Jogador */
