@@ -41,6 +41,7 @@ void desenhar_inimigo(Inimigo* inimigo);
 
 void atualizar_ameba(Ameba* ameba, Jogador* jogador);
 void desenhar_ameba(Ameba* ameba);
+void desenhar_barra_vida_ameba(Ameba* ameba);
 
 void atualizar_tiro(Projetil* tiro, float largura_tela, float altura_tela);
 void desenhar_tiro(Projetil* tiro, unsigned char r, unsigned char g, unsigned char b);

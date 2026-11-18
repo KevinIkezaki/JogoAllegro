@@ -63,6 +63,28 @@ void desenhar_ameba(Ameba* ameba) {
     );
 }
 
+void desenhar_barra_vida_ameba(Ameba* ameba) {
+    float largura = 40.0f;
+    float altura = 5.0f;
+
+    float x = ameba->x - largura / 2;
+    float y = ameba->y - ameba->tamanho / 2 - 10;
+
+    /* Fundo da barra */
+    al_draw_filled_rectangle(
+        x, y,
+        x + largura, y + altura,
+        al_map_rgb(80, 80, 80)
+    );
+
+    /* Vida atual */
+    al_draw_filled_rectangle(
+        x, y,
+        x + largura * ameba->vida / 150.0f, y + altura,
+        al_map_rgb(0, 220, 80)
+    );
+}
+
 void atualizar_tiro(Projetil* tiro, float largura, float altura) {
     if (tiro->ativo) {
         tiro->x += tiro->vx;

@@ -269,6 +269,7 @@ int main(void) {
                 /* Desenhando a Ameba */
                 if (ameba.vida > 0) {
                     desenhar_ameba(&ameba);
+                    desenhar_barra_vida_ameba(&ameba);
                 }
 
                 /* Tiro jogador em azul */
