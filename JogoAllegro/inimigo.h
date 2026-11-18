@@ -23,6 +23,13 @@ typedef struct {
     float tamanho;
     float vel;
     int vida;
+} Ameba;
+
+typedef struct {
+    float x, y;
+    float tamanho;
+    float vel;
+    int vida;
     int invulnerabilidade;
     float direcao_x;
     float direcao_y;
@@ -31,6 +38,9 @@ typedef struct {
 
 void atualizar_inimigo(Inimigo* inimigo, Jogador* jogador, Projetil* tiro_inimigo);
 void desenhar_inimigo(Inimigo* inimigo);
+
+void atualizar_ameba(Ameba* ameba, Jogador* jogador);
+void desenhar_ameba(Ameba* ameba);
 
 void atualizar_tiro(Projetil* tiro, float largura_tela, float altura_tela);
 void desenhar_tiro(Projetil* tiro, unsigned char r, unsigned char g, unsigned char b);

@@ -40,6 +40,29 @@ void desenhar_inimigo(Inimigo* inimigo) {
     );
 }
 
+void atualizar_ameba(Ameba* ameba, Jogador* jogador) {
+    if (ameba->x < jogador->x)
+        ameba->x += ameba->vel;
+
+    if (ameba->x > jogador->x)
+        ameba->x -= ameba->vel;
+
+    if (ameba->y < jogador->y)
+        ameba->y += ameba->vel;
+
+    if (ameba->y > jogador->y)
+        ameba->y -= ameba->vel;
+}
+
+void desenhar_ameba(Ameba* ameba) {
+    al_draw_filled_circle(
+        ameba->x,
+        ameba->y,
+        ameba->tamanho / 2,
+        al_map_rgb(145, 60, 190)
+    );
+}
+
 void atualizar_tiro(Projetil* tiro, float largura, float altura) {
     if (tiro->ativo) {
         tiro->x += tiro->vx;

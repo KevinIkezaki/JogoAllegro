@@ -56,6 +56,7 @@ int main(void) {
     /* Inicializando as Structs */
     Jogador jogador = { LARGURA_TELA / 2.0f, ALTURA_TELA / 2.0f, 40.0f, 4.0f, VIDA_MAX_JOGADOR, 0, 0.0f, -1.0f, 0 };
     Inimigo inimigo = { 600.0f, 150.0f, 30.0f, 0.5f, VIDA_MAX_INIMIGO, 0 };
+    Ameba ameba = { 200.0f, 150.0f, 35.0f, 0.3f, 150 };
     Projetil tiro_inimigo = { 0, 0, 0, 0, 5.0f, false };
     Projetil tiro_jogador = { 0, 0, 0, 0, 5.0f, false };
 
@@ -96,6 +97,10 @@ int main(void) {
                 inimigo.y = 150.0f;
                 inimigo.vida = VIDA_MAX_INIMIGO;
                 inimigo.timer_tiro = 0;
+
+                ameba.x = 200.0f;
+                ameba.y = 150.0f;
+                ameba.vida = 150;
 
                 tiro_inimigo.ativo = false;
                 tiro_jogador.ativo = false;
@@ -156,6 +161,23 @@ int main(void) {
                     }
                 }
 
+                /* Colisao com a Ameba */
+                if (ameba.vida > 0 && jogador.invulnerabilidade == 0) {
+                    float dx = jogador.x - ameba.x;
+                    float dy = jogador.y - ameba.y;
+                    float limite = (jogador.tamanho + ameba.tamanho) / 2.0f;
+
+                    if (dx < limite && dx > -limite && dy < limite && dy > -limite) {
+                        jogador.vida -= 25;
+                        jogador.invulnerabilidade = 90;
+
+                        if (jogador.vida <= 0) {
+                            jogador.vida = 0;
+                            estado = FIM_DE_JOGO;
+                        }
+                    }
+                }
+
                 /* Acoes do Inimigo */
                 if (inimigo.vida > 0) {
                     atualizar_inimigo(&inimigo, &jogador, &tiro_inimigo);
@@ -177,13 +199,32 @@ int main(void) {
 
                 }
 
+                /* Acoes da Ameba */
+                if (ameba.vida > 0) {
+                    atualizar_ameba(&ameba, &jogador);
+                }
+
                 /* Acoes do Tiro do Jogador */
                 atualizar_tiro(&tiro_jogador, LARGURA_TELA, ALTURA_TELA);
 
                 if (inimigo.vida > 0 && verificar_colisao(&tiro_jogador, inimigo.x, inimigo.y, inimigo.tamanho)) {
                     inimigo.vida -= 25;
                     tiro_jogador.ativo = false;
-                    if (inimigo.vida <= 0) { inimigo.vida = 0; estado = VITORIA; }
+                    if (inimigo.vida <= 0) {
+                        inimigo.vida = 0;
+                    }
+                }
+
+                if (ameba.vida > 0 && verificar_colisao(&tiro_jogador, ameba.x, ameba.y, ameba.tamanho)) {
+                    ameba.vida -= 25;
+                    tiro_jogador.ativo = false;
+                    if (ameba.vida <= 0) {
+                        ameba.vida = 0;
+                    }
+                }
+
+                if (inimigo.vida <= 0 && ameba.vida <= 0) {
+                    estado = VITORIA;
                 }
             }
             redesenhar = true;
@@ -223,6 +264,11 @@ int main(void) {
 
                     /* Tiro inimigo em vermelho */
                     desenhar_tiro(&tiro_inimigo, 255, 0, 0);
+                }
+
+                /* Desenhando a Ameba */
+                if (ameba.vida > 0) {
+                    desenhar_ameba(&ameba);
                 }
 
                 /* Tiro jogador em azul */
