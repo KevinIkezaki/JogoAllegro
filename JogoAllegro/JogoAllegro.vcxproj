@@ -181,12 +181,14 @@
   <ItemGroup>
     <ClCompile Include="inimigo.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="perguntas.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inimigo.h" />
+    <ClInclude Include="perguntas.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
