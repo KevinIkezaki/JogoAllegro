@@ -48,4 +48,10 @@ void desenhar_tiro(Projetil* tiro, unsigned char r, unsigned char g, unsigned ch
 
 bool verificar_colisao(Projetil* tiro, float alvo_x, float alvo_y, float alvo_tamanho);
 
+void separar_todos_inimigos(
+    Inimigo inimigos[], int qtd_inimigos,
+    Ameba amebas[], int qtd_amebas,
+    float largura_tela, float altura_tela, float espessura_parede
+);
+
 #endif

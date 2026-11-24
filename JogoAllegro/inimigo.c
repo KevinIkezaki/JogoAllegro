@@ -1,4 +1,5 @@
 #include "inimigo.h"
+#include <math.h>
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
 
@@ -105,4 +106,110 @@ bool verificar_colisao(Projetil* tiro, float alvo_x, float alvo_y, float alvo_ta
 
     return tiro->x > alvo_x - alvo_tamanho / 2 && tiro->x < alvo_x + alvo_tamanho / 2
         && tiro->y > alvo_y - alvo_tamanho / 2 && tiro->y < alvo_y + alvo_tamanho / 2;
+}
+
+static void limitar_na_sala(
+    float* x, float* y, float tamanho,
+    float largura_tela, float altura_tela, float espessura_parede
+) {
+    float min_x = espessura_parede + tamanho / 2.0f;
+    float max_x = largura_tela - espessura_parede - tamanho / 2.0f;
+    float min_y = espessura_parede + tamanho / 2.0f;
+    float max_y = altura_tela - espessura_parede - tamanho / 2.0f;
+
+    if (*x < min_x) *x = min_x;
+    if (*x > max_x) *x = max_x;
+    if (*y < min_y) *y = min_y;
+    if (*y > max_y) *y = max_y;
+}
+
+static void separar_entidades(
+    float* x1, float* y1, float tam1,
+    float* x2, float* y2, float tam2
+) {
+    float dx = *x2 - *x1;
+    float dy = *y2 - *y1;
+    float dist_min = (tam1 + tam2) / 2.0f;
+    float dist_sq = dx * dx + dy * dy;
+
+    if (dist_sq < dist_min * dist_min) {
+        float dist = sqrtf(dist_sq);
+        float nx, ny;
+
+        if (dist > 0.001f) {
+            nx = dx / dist;
+            ny = dy / dist;
+        }
+        else {
+            nx = 1.0f;
+            ny = 0.0f;
+            dist = 0.0f;
+        }
+
+        float empurrao = (dist_min - dist) / 2.0f;
+        *x1 -= nx * empurrao;
+        *y1 -= ny * empurrao;
+        *x2 += nx * empurrao;
+        *y2 += ny * empurrao;
+    }
+}
+
+void separar_todos_inimigos(
+    Inimigo inimigos[], int qtd_inimigos,
+    Ameba amebas[], int qtd_amebas,
+    float largura_tela, float altura_tela, float espessura_parede
+) {
+    /* Inimigo x Inimigo */
+    for (int i = 0; i < qtd_inimigos; i++) {
+        if (inimigos[i].vida <= 0) continue;
+        for (int j = i + 1; j < qtd_inimigos; j++) {
+            if (inimigos[j].vida <= 0) continue;
+            separar_entidades(
+                &inimigos[i].x, &inimigos[i].y, inimigos[i].tamanho,
+                &inimigos[j].x, &inimigos[j].y, inimigos[j].tamanho
+            );
+        }
+    }
+
+    /* Ameba x Ameba */
+    for (int i = 0; i < qtd_amebas; i++) {
+        if (amebas[i].vida <= 0) continue;
+        for (int j = i + 1; j < qtd_amebas; j++) {
+            if (amebas[j].vida <= 0) continue;
+            separar_entidades(
+                &amebas[i].x, &amebas[i].y, amebas[i].tamanho,
+                &amebas[j].x, &amebas[j].y, amebas[j].tamanho
+            );
+        }
+    }
+
+    /* Inimigo x Ameba */
+    for (int i = 0; i < qtd_inimigos; i++) {
+        if (inimigos[i].vida <= 0) continue;
+        for (int j = 0; j < qtd_amebas; j++) {
+            if (amebas[j].vida <= 0) continue;
+            separar_entidades(
+                &inimigos[i].x, &inimigos[i].y, inimigos[i].tamanho,
+                &amebas[j].x, &amebas[j].y, amebas[j].tamanho
+            );
+        }
+    }
+
+    /* Mantem todos dentro das paredes da sala */
+    for (int i = 0; i < qtd_inimigos; i++) {
+        if (inimigos[i].vida > 0) {
+            limitar_na_sala(
+                &inimigos[i].x, &inimigos[i].y, inimigos[i].tamanho,
+                largura_tela, altura_tela, espessura_parede
+            );
+        }
+    }
+    for (int i = 0; i < qtd_amebas; i++) {
+        if (amebas[i].vida > 0) {
+            limitar_na_sala(
+                &amebas[i].x, &amebas[i].y, amebas[i].tamanho,
+                largura_tela, altura_tela, espessura_parede
+            );
+        }
+    }
 }

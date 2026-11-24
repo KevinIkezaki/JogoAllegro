@@ -18,24 +18,35 @@
 #define VIDA_MAX_INIMIGO 100
 #define VIDA_MAX_AMEBA 150
 
+/* Velocidades de movimento (pixels por frame, a 60 FPS) */
+#define VEL_JOGADOR 2.8f
+#define VEL_INIMIGO 0.1f
+#define VEL_AMEBA   1.5f
+#define VEL_BOSS    1.5f
+
 /* Configuracao das waves, tiros e salas */
 #define MAX_INIMIGOS 5
 #define MAX_TIROS_JOGADOR 20
-#define CADENCIA_TIRO_JOGADOR 60
+#define CADENCIA_TIRO_JOGADOR 60 /* Frames entre cada tiro (menor = mais rapido) */
 #define TOTAL_SALAS_COMBATE 3
 #define SALA_BOSS 4
 
-/* Paredes e portas */
+/* Paredes, portas e corredor de upgrade */
 #define ESPESSURA_PAREDE 30.0f
 #define PORTA_Y_MIN 240.0f
 #define PORTA_Y_MAX 360.0f
-
-/* Altura do corredor da sala de upgrade */
 #define CORREDOR_Y_MIN 200.0f
 #define CORREDOR_Y_MAX 400.0f
 
+/* Area do botao PLAY no menu inicial */
+#define BTN_PLAY_X1 300.0f
+#define BTN_PLAY_Y1 275.0f
+#define BTN_PLAY_X2 500.0f
+#define BTN_PLAY_Y2 335.0f
+
 typedef enum {
     MENU_INICIAL,
+    TUTORIAL,
     JOGANDO,
     SALA_UPGRADE,
     FIM_DE_JOGO,
@@ -105,7 +116,7 @@ void iniciar_sala_combate(
         jogador->y = ALTURA_TELA / 2.0f;
     }
 
-    /* Distribuicao das waves usando os dois tipos de inimigos ja prontos */
+    /* Distribuicao das waves */
     if (sala == 1) {
         *qtd_inimigos = 2;
         *qtd_amebas = 1; /* Total: 3 inimigos */
@@ -135,7 +146,7 @@ void iniciar_sala_combate(
         inimigos[i].x = x;
         inimigos[i].y = y;
         inimigos[i].tamanho = 30.0f;
-        inimigos[i].vel = 0.5f;
+        inimigos[i].vel = VEL_INIMIGO;
         inimigos[i].vida = VIDA_MAX_INIMIGO;
         inimigos[i].timer_tiro = i * 20;
     }
@@ -147,7 +158,7 @@ void iniciar_sala_combate(
         amebas[i].x = x;
         amebas[i].y = y;
         amebas[i].tamanho = 35.0f;
-        amebas[i].vel = 0.3f;
+        amebas[i].vel = VEL_AMEBA;
         amebas[i].vida = VIDA_MAX_AMEBA;
     }
 }
@@ -180,7 +191,7 @@ void iniciar_sala_boss(
     inimigos[0].x = LARGURA_TELA - 150.0f;
     inimigos[0].y = ALTURA_TELA / 2.0f;
     inimigos[0].tamanho = 45.0f;
-    inimigos[0].vel = 0.6f;
+    inimigos[0].vel = VEL_BOSS;
     inimigos[0].vida = VIDA_MAX_INIMIGO;
     inimigos[0].timer_tiro = 0;
 }
@@ -200,7 +211,7 @@ void reiniciar_jogo(
     bool* portaAberta
 ) {
     jogador->tamanho = 40.0f;
-    jogador->vel = 4.0f;
+    jogador->vel = VEL_JOGADOR;
     jogador->vida = VIDA_MAX_JOGADOR;
     jogador->invulnerabilidade = 0;
     jogador->direcao_x = 1.0f;
@@ -219,13 +230,13 @@ void reiniciar_jogo(
     );
 }
 
-/* Desenha o minimapa no canto superior direito seguindo o esquema das 4 salas + 3 upgrades */
+/* Desenha o minimapa no canto superior direito */
 void desenhar_minimapa(int salaAtual, EstadoJogo estado) {
     float x = LARGURA_TELA - 195.0f;
     float y = 8.0f;
 
     for (int s = 1; s <= SALA_BOSS; s++) {
-        bool estaNaSala = (estado == JOGANDO && salaAtual == s);
+        bool estaNaSala = ((estado == JOGANDO || estado == TUTORIAL) && salaAtual == s);
         ALLEGRO_COLOR corSala = estaNaSala
             ? al_map_rgb(0, 220, 255)
             : (s == SALA_BOSS ? al_map_rgb(160, 40, 40) : al_map_rgb(90, 90, 110));
@@ -247,7 +258,7 @@ void desenhar_minimapa(int salaAtual, EstadoJogo estado) {
 
 int main(void) {
 
-    if (!al_init() || !al_install_keyboard() ||
+    if (!al_init() || !al_install_keyboard() || !al_install_mouse() ||
         !al_init_primitives_addon() || !al_init_font_addon()) {
 
         fprintf(stderr, "Falha ao iniciar o Allegro ou seus add-ons.\n");
@@ -274,6 +285,7 @@ int main(void) {
     al_register_event_source(fila, al_get_display_event_source(janela));
     al_register_event_source(fila, al_get_timer_event_source(timer));
     al_register_event_source(fila, al_get_keyboard_event_source());
+    al_register_event_source(fila, al_get_mouse_event_source());
 
     EstadoJogo estado = MENU_INICIAL;
     EstadoJogo estadoAnterior = JOGANDO;
@@ -281,6 +293,8 @@ int main(void) {
     bool teclas[ALLEGRO_KEY_MAX] = { false };
     bool rodando = true;
     bool redesenhar = true;
+    bool mouseSobrePlay = false;
+    bool tutorialVisto = false;
 
     Jogador jogador;
     Inimigo inimigos[MAX_INIMIGOS];
@@ -316,6 +330,28 @@ int main(void) {
             rodando = false;
             break;
 
+        case ALLEGRO_EVENT_MOUSE_AXES: {
+            float mx = (float)ev.mouse.x;
+            float my = (float)ev.mouse.y;
+
+            mouseSobrePlay = (mx >= BTN_PLAY_X1 && mx <= BTN_PLAY_X2 &&
+                my >= BTN_PLAY_Y1 && my <= BTN_PLAY_Y2);
+            break;
+        }
+
+        case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN: {
+            /* Botao esquerdo do mouse (1) clicado em cima do PLAY */
+            if (estado == MENU_INICIAL && ev.mouse.button == 1 && mouseSobrePlay) {
+                if (!tutorialVisto) {
+                    estado = TUTORIAL;
+                }
+                else {
+                    estado = estadoAnterior;
+                }
+            }
+            break;
+        }
+
         case ALLEGRO_EVENT_KEY_DOWN: {
 
             int tecla = ev.keyboard.keycode;
@@ -326,8 +362,10 @@ int main(void) {
 
             /* ESC */
             if (tecla == ALLEGRO_KEY_ESCAPE) {
-                if (estado == JOGANDO || estado == SALA_UPGRADE) {
-                    estadoAnterior = estado;
+                if (estado == JOGANDO || estado == SALA_UPGRADE || estado == TUTORIAL) {
+                    if (estado != TUTORIAL) {
+                        estadoAnterior = estado;
+                    }
                     estado = MENU_INICIAL;
                 }
                 else {
@@ -335,9 +373,10 @@ int main(void) {
                 }
             }
 
-            /* Iniciar ou retomar do menu */
-            if (estado == MENU_INICIAL && tecla == ALLEGRO_KEY_ENTER) {
-                estado = estadoAnterior;
+            /* Fechar janelinha de tutorial e comecar o jogo */
+            else if (estado == TUTORIAL && tecla == ALLEGRO_KEY_SPACE) {
+                tutorialVisto = true;
+                estado = JOGANDO;
             }
 
             /* Reiniciar jogo depois de morrer ou vencer */
@@ -413,7 +452,7 @@ int main(void) {
                     jogador.y <= PORTA_Y_MAX) {
 
                     if (estado == JOGANDO) {
-                        /* Sai da sala de combate, entra no corredor de upgrade e regenera toda a vida */
+                        /* Entra no corredor de upgrade e regenera toda a vida */
                         estado = SALA_UPGRADE;
                         portaAberta = false;
                         jogador.vida = vidaMaximaJogador;
@@ -426,7 +465,7 @@ int main(void) {
                         }
                     }
                     else if (estado == SALA_UPGRADE) {
-                        /* Sai do corredor de upgrade e avanca para a proxima sala */
+                        /* Avanca para a proxima sala de combate ou Boss Fight */
                         salaAtual++;
 
                         if (salaAtual <= TOTAL_SALAS_COMBATE) {
@@ -451,7 +490,7 @@ int main(void) {
                 }
             }
 
-            /* Logica de combate e disparo constante com as setas (somente em JOGANDO) */
+            /* Logica de combate e disparo constante com as setas */
             if (estado == JOGANDO) {
 
                 if (jogador.tempo_recarga > 0) {
@@ -572,6 +611,13 @@ int main(void) {
                     }
                 }
 
+                /* Impede que inimigos e amebas atravessem uns aos outros */
+                separar_todos_inimigos(
+                    inimigos, qtd_inimigos,
+                    amebas, qtd_amebas,
+                    LARGURA_TELA, ALTURA_TELA, ESPESSURA_PAREDE
+                );
+
                 /* Atualizar todos os tiros ativos do jogador e testar colisao contra a wave */
                 for (int t = 0; t < MAX_TIROS_JOGADOR; t++) {
                     if (!tiros_jogador[t].ativo) continue;
@@ -636,41 +682,47 @@ int main(void) {
 
                 al_draw_text(
                     fonte, al_map_rgb(255, 255, 255),
-                    LARGURA_TELA / 2, 200,
+                    LARGURA_TELA / 2, 170,
                     ALLEGRO_ALIGN_CENTER, "WHITE CELL WARRIOR"
                 );
 
-                al_draw_text(
-                    fonte, al_map_rgb(0, 255, 100),
-                    LARGURA_TELA / 2, 280,
-                    ALLEGRO_ALIGN_CENTER, "ENTER - Iniciar / Continuar"
+                ALLEGRO_COLOR corBotao = mouseSobrePlay
+                    ? al_map_rgb(60, 230, 120)
+                    : al_map_rgb(35, 165, 85);
+
+                al_draw_filled_rounded_rectangle(
+                    BTN_PLAY_X1, BTN_PLAY_Y1,
+                    BTN_PLAY_X2, BTN_PLAY_Y2,
+                    10, 10, corBotao
+                );
+
+                al_draw_rounded_rectangle(
+                    BTN_PLAY_X1, BTN_PLAY_Y1,
+                    BTN_PLAY_X2, BTN_PLAY_Y2,
+                    10, 10, al_map_rgb(255, 255, 255), 2.0f
                 );
 
                 al_draw_text(
-                    fonte, al_map_rgb(200, 200, 200),
-                    LARGURA_TELA / 2, 320,
-                    ALLEGRO_ALIGN_CENTER, "WASD - Mover"
+                    fonte, al_map_rgb(255, 255, 255),
+                    (BTN_PLAY_X1 + BTN_PLAY_X2) / 2.0f,
+                    (BTN_PLAY_Y1 + BTN_PLAY_Y2) / 2.0f - 4.0f,
+                    ALLEGRO_ALIGN_CENTER,
+                    "PLAY"
                 );
 
                 al_draw_text(
-                    fonte, al_map_rgb(0, 150, 255),
-                    LARGURA_TELA / 2, 345,
-                    ALLEGRO_ALIGN_CENTER, "SETAS - Atirar | E - Liberar sala de upgrade"
-                );
-
-                al_draw_text(
-                    fonte, al_map_rgb(200, 200, 200),
-                    LARGURA_TELA / 2, 380,
+                    fonte, al_map_rgb(180, 180, 180),
+                    LARGURA_TELA / 2, 390,
                     ALLEGRO_ALIGN_CENTER, "ESC - Sair"
                 );
             }
 
-            /* SALAS DE COMBATE, BOSS E CORREDOR DE UPGRADE */
-            else if (estado == JOGANDO || estado == SALA_UPGRADE) {
+            /* SALAS DE COMBATE, BOSS, CORREDOR DE UPGRADE E TUTORIAL */
+            else if (estado == JOGANDO || estado == SALA_UPGRADE || estado == TUTORIAL) {
 
                 ALLEGRO_COLOR corParede = al_map_rgb(45, 45, 65);
 
-                if (estado == JOGANDO) {
+                if (estado == JOGANDO || estado == TUTORIAL) {
                     /* Paredes externas da sala de combate/boss */
                     al_draw_filled_rectangle(0, 0, LARGURA_TELA, ESPESSURA_PAREDE, corParede);
                     al_draw_filled_rectangle(0, ALTURA_TELA - ESPESSURA_PAREDE, LARGURA_TELA, ALTURA_TELA, corParede);
@@ -782,8 +834,8 @@ int main(void) {
                     al_map_rgb(0, 255, 0)
                 );
 
-                /* Desenho dos inimigos e tiros (somente em JOGANDO) */
-                if (estado == JOGANDO) {
+                /* Desenho dos inimigos e tiros */
+                if (estado == JOGANDO || estado == TUTORIAL) {
                     int inimigosVivos = 0;
 
                     for (int i = 0; i < qtd_inimigos; i++) {
@@ -853,6 +905,44 @@ int main(void) {
                 }
 
                 desenhar_minimapa(salaAtual, estado);
+
+                /* JANELINHA DE TUTORIAL (apenas texto) */
+                if (estado == TUTORIAL) {
+                    al_draw_filled_rectangle(
+                        0, 0, LARGURA_TELA, ALTURA_TELA,
+                        al_map_rgba(0, 0, 0, 175)
+                    );
+
+                    float jx1 = 180.0f, jy1 = 180.0f;
+                    float jx2 = 620.0f, jy2 = 420.0f;
+
+                    al_draw_filled_rounded_rectangle(jx1, jy1, jx2, jy2, 12, 12, al_map_rgb(28, 30, 48));
+                    al_draw_rounded_rectangle(jx1, jy1, jx2, jy2, 12, 12, al_map_rgb(100, 200, 255), 3.0f);
+
+                    al_draw_text(
+                        fonte, al_map_rgb(255, 255, 255),
+                        LARGURA_TELA / 2, jy1 + 25,
+                        ALLEGRO_ALIGN_CENTER, "COMO JOGAR"
+                    );
+
+                    al_draw_text(
+                        fonte, al_map_rgb(180, 255, 180),
+                        LARGURA_TELA / 2, jy1 + 80,
+                        ALLEGRO_ALIGN_CENTER, "Use W, A, S, D para se mover"
+                    );
+
+                    al_draw_text(
+                        fonte, al_map_rgb(100, 200, 255),
+                        LARGURA_TELA / 2, jy1 + 115,
+                        ALLEGRO_ALIGN_CENTER, "Use as SETINHAS para atirar"
+                    );
+
+                    al_draw_text(
+                        fonte, al_map_rgb(255, 220, 80),
+                        LARGURA_TELA / 2, jy2 - 35,
+                        ALLEGRO_ALIGN_CENTER, "Pressione ESPACO para fechar e comecar!"
+                    );
+                }
             }
 
             /* FIM DE JOGO */
