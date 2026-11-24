@@ -1,10 +1,9 @@
-
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
 
-#include "perguntas.h"
+/* #include "perguntas.h" -> reative quando for ligar o quiz na sala de upgrade */
 #include "inimigo.h"
 
 #include <allegro5/allegro.h>
@@ -17,21 +16,234 @@
 
 #define VIDA_MAX_JOGADOR 100
 #define VIDA_MAX_INIMIGO 100
+#define VIDA_MAX_AMEBA 150
 
-/* Opcoes de melhoria */
-#define MELHORIA_VIDA 1
-#define MELHORIA_VELOCIDADE 2
-#define MELHORIA_DANO 3
+/* Configuracao das waves, tiros e salas */
+#define MAX_INIMIGOS 5
+#define MAX_TIROS_JOGADOR 20
+#define CADENCIA_TIRO_JOGADOR 60
+#define TOTAL_SALAS_COMBATE 3
+#define SALA_BOSS 4
+
+/* Paredes e portas */
+#define ESPESSURA_PAREDE 30.0f
+#define PORTA_Y_MIN 240.0f
+#define PORTA_Y_MAX 360.0f
+
+/* Altura do corredor da sala de upgrade */
+#define CORREDOR_Y_MIN 200.0f
+#define CORREDOR_Y_MAX 400.0f
 
 typedef enum {
     MENU_INICIAL,
     JOGANDO,
-    SALA_MELHORIAS,
-    PERGUNTA,
-    RESULTADO_PERGUNTA,
+    SALA_UPGRADE,
     FIM_DE_JOGO,
     VITORIA
 } EstadoJogo;
+
+/* Desativa todos os tiros ativos do jogador */
+void limpar_tiros_jogador(Projetil tiros[]) {
+    for (int i = 0; i < MAX_TIROS_JOGADOR; i++) {
+        tiros[i].ativo = false;
+        tiros[i].raio = 5.0f;
+        tiros[i].x = 0.0f;
+        tiros[i].y = 0.0f;
+        tiros[i].vx = 0.0f;
+        tiros[i].vy = 0.0f;
+    }
+}
+
+/* Gera uma posicao dentro da sala mantendo distancia segura do jogador */
+void sortear_posicao_segura(float* x, float* y, float jogador_x, float jogador_y) {
+    float min_x = ESPESSURA_PAREDE + 50.0f;
+    float max_x = LARGURA_TELA - ESPESSURA_PAREDE - 50.0f;
+    float min_y = ESPESSURA_PAREDE + 50.0f;
+    float max_y = ALTURA_TELA - ESPESSURA_PAREDE - 50.0f;
+
+    for (int tentativa = 0; tentativa < 50; tentativa++) {
+        float cand_x = min_x + (float)(rand() % (int)(max_x - min_x));
+        float cand_y = min_y + (float)(rand() % (int)(max_y - min_y));
+
+        float dx = cand_x - jogador_x;
+        float dy = cand_y - jogador_y;
+
+        if ((dx * dx + dy * dy) >= (180.0f * 180.0f)) {
+            *x = cand_x;
+            *y = cand_y;
+            return;
+        }
+    }
+
+    *x = LARGURA_TELA - 120.0f;
+    *y = 120.0f;
+}
+
+/* Prepara a wave de cada sala de combate (3, 4 e 5 inimigos) */
+void iniciar_sala_combate(
+    int sala,
+    Jogador* jogador,
+    Inimigo inimigos[],
+    Projetil tiros_inimigos[],
+    int* qtd_inimigos,
+    Ameba amebas[],
+    int* qtd_amebas,
+    Projetil tiros_jogador[],
+    bool* portaAberta
+) {
+    *portaAberta = false;
+    limpar_tiros_jogador(tiros_jogador);
+    jogador->tempo_recarga = 0;
+
+    /* Sala 1 comeca no centro; salas 2 e 3 entram pela porta esquerda */
+    if (sala == 1) {
+        jogador->x = LARGURA_TELA / 2.0f;
+        jogador->y = ALTURA_TELA / 2.0f;
+    }
+    else {
+        jogador->x = ESPESSURA_PAREDE + jogador->tamanho;
+        jogador->y = ALTURA_TELA / 2.0f;
+    }
+
+    /* Distribuicao das waves usando os dois tipos de inimigos ja prontos */
+    if (sala == 1) {
+        *qtd_inimigos = 2;
+        *qtd_amebas = 1; /* Total: 3 inimigos */
+    }
+    else if (sala == 2) {
+        *qtd_inimigos = 2;
+        *qtd_amebas = 2; /* Total: 4 inimigos */
+    }
+    else {
+        *qtd_inimigos = 3;
+        *qtd_amebas = 2; /* Total: 5 inimigos */
+    }
+
+    for (int i = 0; i < MAX_INIMIGOS; i++) {
+        tiros_inimigos[i].ativo = false;
+        tiros_inimigos[i].raio = 5.0f;
+        tiros_inimigos[i].x = 0.0f;
+        tiros_inimigos[i].y = 0.0f;
+        tiros_inimigos[i].vx = 0.0f;
+        tiros_inimigos[i].vy = 0.0f;
+    }
+
+    for (int i = 0; i < *qtd_inimigos; i++) {
+        float x, y;
+        sortear_posicao_segura(&x, &y, jogador->x, jogador->y);
+
+        inimigos[i].x = x;
+        inimigos[i].y = y;
+        inimigos[i].tamanho = 30.0f;
+        inimigos[i].vel = 0.5f;
+        inimigos[i].vida = VIDA_MAX_INIMIGO;
+        inimigos[i].timer_tiro = i * 20;
+    }
+
+    for (int i = 0; i < *qtd_amebas; i++) {
+        float x, y;
+        sortear_posicao_segura(&x, &y, jogador->x, jogador->y);
+
+        amebas[i].x = x;
+        amebas[i].y = y;
+        amebas[i].tamanho = 35.0f;
+        amebas[i].vel = 0.3f;
+        amebas[i].vida = VIDA_MAX_AMEBA;
+    }
+}
+
+/* Prepara a sala de Boss com 1 inimigo de teste */
+void iniciar_sala_boss(
+    Jogador* jogador,
+    Inimigo inimigos[],
+    Projetil tiros_inimigos[],
+    int* qtd_inimigos,
+    int* qtd_amebas,
+    Projetil tiros_jogador[],
+    bool* portaAberta
+) {
+    *portaAberta = false;
+    limpar_tiros_jogador(tiros_jogador);
+    jogador->tempo_recarga = 0;
+
+    jogador->x = ESPESSURA_PAREDE + jogador->tamanho;
+    jogador->y = ALTURA_TELA / 2.0f;
+
+    *qtd_inimigos = 1;
+    *qtd_amebas = 0;
+
+    for (int i = 0; i < MAX_INIMIGOS; i++) {
+        tiros_inimigos[i].ativo = false;
+        tiros_inimigos[i].raio = 5.0f;
+    }
+
+    inimigos[0].x = LARGURA_TELA - 150.0f;
+    inimigos[0].y = ALTURA_TELA / 2.0f;
+    inimigos[0].tamanho = 45.0f;
+    inimigos[0].vel = 0.6f;
+    inimigos[0].vida = VIDA_MAX_INIMIGO;
+    inimigos[0].timer_tiro = 0;
+}
+
+/* Reinicia toda a progressao do jogo */
+void reiniciar_jogo(
+    Jogador* jogador,
+    int* vidaMaximaJogador,
+    int* danoJogador,
+    int* salaAtual,
+    Inimigo inimigos[],
+    Projetil tiros_inimigos[],
+    int* qtd_inimigos,
+    Ameba amebas[],
+    int* qtd_amebas,
+    Projetil tiros_jogador[],
+    bool* portaAberta
+) {
+    jogador->tamanho = 40.0f;
+    jogador->vel = 4.0f;
+    jogador->vida = VIDA_MAX_JOGADOR;
+    jogador->invulnerabilidade = 0;
+    jogador->direcao_x = 1.0f;
+    jogador->direcao_y = 0.0f;
+    jogador->tempo_recarga = 0;
+
+    *vidaMaximaJogador = VIDA_MAX_JOGADOR;
+    *danoJogador = 25;
+    *salaAtual = 1;
+
+    iniciar_sala_combate(
+        *salaAtual, jogador,
+        inimigos, tiros_inimigos, qtd_inimigos,
+        amebas, qtd_amebas,
+        tiros_jogador, portaAberta
+    );
+}
+
+/* Desenha o minimapa no canto superior direito seguindo o esquema das 4 salas + 3 upgrades */
+void desenhar_minimapa(int salaAtual, EstadoJogo estado) {
+    float x = LARGURA_TELA - 195.0f;
+    float y = 8.0f;
+
+    for (int s = 1; s <= SALA_BOSS; s++) {
+        bool estaNaSala = (estado == JOGANDO && salaAtual == s);
+        ALLEGRO_COLOR corSala = estaNaSala
+            ? al_map_rgb(0, 220, 255)
+            : (s == SALA_BOSS ? al_map_rgb(160, 40, 40) : al_map_rgb(90, 90, 110));
+
+        al_draw_filled_rectangle(x, y, x + 22.0f, y + 14.0f, corSala);
+        x += 24.0f;
+
+        if (s < SALA_BOSS) {
+            bool estaNoUpgrade = (estado == SALA_UPGRADE && salaAtual == s);
+            ALLEGRO_COLOR corCorredor = estaNoUpgrade
+                ? al_map_rgb(255, 220, 60)
+                : al_map_rgb(60, 60, 75);
+
+            al_draw_filled_rectangle(x, y + 4.0f, x + 16.0f, y + 10.0f, corCorredor);
+            x += 18.0f;
+        }
+    }
+}
 
 int main(void) {
 
@@ -64,51 +276,32 @@ int main(void) {
     al_register_event_source(fila, al_get_keyboard_event_source());
 
     EstadoJogo estado = MENU_INICIAL;
+    EstadoJogo estadoAnterior = JOGANDO;
 
     bool teclas[ALLEGRO_KEY_MAX] = { false };
     bool rodando = true;
     bool redesenhar = true;
 
-    /* Inicializando jogador */
-    Jogador jogador = {
-        LARGURA_TELA / 2.0f,
-        ALTURA_TELA / 2.0f,
-        40.0f,
-        4.0f,
-        VIDA_MAX_JOGADOR,
-        0,
-        0.0f,
-        -1.0f,
-        0
-    };
+    Jogador jogador;
+    Inimigo inimigos[MAX_INIMIGOS];
+    Projetil tiros_inimigos[MAX_INIMIGOS];
+    Ameba amebas[MAX_INIMIGOS];
+    Projetil tiros_jogador[MAX_TIROS_JOGADOR];
 
-    /* Inicializando inimigo */
-    Inimigo inimigo = {
-        600.0f, 150.0f, 30.0f, 0.5f, VIDA_MAX_INIMIGO, 0
-    };
-
-    /* Inicializando ameba */
-    Ameba ameba = {
-        200.0f, 150.0f, 35.0f, 0.3f, 150
-    };
-
-    Projetil tiro_inimigo = { 0, 0, 0, 0, 5.0f, false };
-    Projetil tiro_jogador = { 0, 0, 0, 0, 5.0f, false };
-
-    /* Variaveis das melhorias */
+    int qtd_inimigos = 0;
+    int qtd_amebas = 0;
     int vidaMaximaJogador = VIDA_MAX_JOGADOR;
     int danoJogador = 25;
-
-    /* Controle das salas e fases */
     int salaAtual = 1;
-    int faseAtual = 1;
+    bool portaAberta = false;
 
-    /* Controle das melhorias e perguntas */
-    int melhoriaEscolhida = 0;
-    int indicePerguntaAtual = -1;
-
-    bool tentativaMelhoriaUsada = false;
-    bool respostaCorreta = false;
+    /* Inicializa a primeira sala antes de iniciar o loop */
+    reiniciar_jogo(
+        &jogador, &vidaMaximaJogador, &danoJogador, &salaAtual,
+        inimigos, tiros_inimigos, &qtd_inimigos,
+        amebas, &qtd_amebas,
+        tiros_jogador, &portaAberta
+    );
 
     al_start_timer(timer);
 
@@ -133,7 +326,8 @@ int main(void) {
 
             /* ESC */
             if (tecla == ALLEGRO_KEY_ESCAPE) {
-                if (estado == JOGANDO) {
+                if (estado == JOGANDO || estado == SALA_UPGRADE) {
+                    estadoAnterior = estado;
                     estado = MENU_INICIAL;
                 }
                 else {
@@ -141,197 +335,29 @@ int main(void) {
                 }
             }
 
-            /* Iniciar jogo */
+            /* Iniciar ou retomar do menu */
             if (estado == MENU_INICIAL && tecla == ALLEGRO_KEY_ENTER) {
-                estado = JOGANDO;
+                estado = estadoAnterior;
             }
 
             /* Reiniciar jogo depois de morrer ou vencer */
             else if ((estado == FIM_DE_JOGO || estado == VITORIA) &&
                 tecla == ALLEGRO_KEY_ENTER) {
 
-                jogador.x = LARGURA_TELA / 2.0f;
-                jogador.y = ALTURA_TELA / 2.0f;
-                jogador.vida = VIDA_MAX_JOGADOR;
-                jogador.vel = 4.0f;
-                jogador.invulnerabilidade = 0;
-                jogador.tempo_recarga = 0;
-                jogador.direcao_x = 0.0f;
-                jogador.direcao_y = -1.0f;
+                reiniciar_jogo(
+                    &jogador, &vidaMaximaJogador, &danoJogador, &salaAtual,
+                    inimigos, tiros_inimigos, &qtd_inimigos,
+                    amebas, &qtd_amebas,
+                    tiros_jogador, &portaAberta
+                );
 
-                inimigo.x = 600.0f;
-                inimigo.y = 150.0f;
-                inimigo.vida = VIDA_MAX_INIMIGO;
-                inimigo.timer_tiro = 0;
-
-                ameba.x = 200.0f;
-                ameba.y = 150.0f;
-                ameba.vida = 150;
-
-                tiro_inimigo.ativo = false;
-                tiro_jogador.ativo = false;
-
-                vidaMaximaJogador = VIDA_MAX_JOGADOR;
-                danoJogador = 25;
-
-                salaAtual = 1;
-                faseAtual = 1;
-
-                melhoriaEscolhida = 0;
-                indicePerguntaAtual = -1;
-
-                tentativaMelhoriaUsada = false;
-                respostaCorreta = false;
-
+                estadoAnterior = JOGANDO;
                 estado = JOGANDO;
             }
 
-            /* Escolher melhoria */
-            else if (estado == SALA_MELHORIAS &&
-                !tentativaMelhoriaUsada) {
-
-                if (tecla == ALLEGRO_KEY_1) {
-                    melhoriaEscolhida = MELHORIA_VIDA;
-                }
-                else if (tecla == ALLEGRO_KEY_2) {
-                    melhoriaEscolhida = MELHORIA_VELOCIDADE;
-                }
-                else if (tecla == ALLEGRO_KEY_3) {
-                    melhoriaEscolhida = MELHORIA_DANO;
-                }
-
-                if (melhoriaEscolhida != 0) {
-
-                    int indices[1];
-
-                    int quantidade = sortearPerguntasDaFase(
-                        faseAtual,
-                        indices,
-                        1
-                    );
-
-                    if (quantidade > 0) {
-                        indicePerguntaAtual = indices[0];
-                        respostaCorreta = false;
-                        estado = PERGUNTA;
-                    }
-                    else {
-                        printf("Nao foi possivel encontrar uma pergunta!\n");
-                        melhoriaEscolhida = 0;
-                    }
-                }
-            }
-
-            /* Responder pergunta */
-            else if (estado == PERGUNTA) {
-
-                int resposta = -1;
-
-                if (tecla == ALLEGRO_KEY_1) {
-                    resposta = 0;
-                }
-                else if (tecla == ALLEGRO_KEY_2) {
-                    resposta = 1;
-                }
-                else if (tecla == ALLEGRO_KEY_3) {
-                    resposta = 2;
-                }
-                else if (tecla == ALLEGRO_KEY_4) {
-                    resposta = 3;
-                }
-
-                if (resposta != -1 && indicePerguntaAtual >= 0) {
-
-                    tentativaMelhoriaUsada = true;
-
-                    respostaCorreta = verificarResposta(
-                        indicePerguntaAtual,
-                        resposta
-                    );
-
-                    if (respostaCorreta) {
-
-                        /* Melhoria de vida */
-                        if (melhoriaEscolhida == MELHORIA_VIDA) {
-
-                            vidaMaximaJogador += 25;
-                            jogador.vida += 25;
-
-                            if (jogador.vida > vidaMaximaJogador) {
-                                jogador.vida = vidaMaximaJogador;
-                            }
-                        }
-
-                        /* Melhoria de velocidade */
-                        else if (melhoriaEscolhida == MELHORIA_VELOCIDADE) {
-                            jogador.vel += 1.0f;
-                        }
-
-                        /* Melhoria de dano */
-                        else if (melhoriaEscolhida == MELHORIA_DANO) {
-                            danoJogador += 10;
-                        }
-                    }
-
-                    estado = RESULTADO_PERGUNTA;
-                }
-            }
-
-            /* Continuar depois do resultado */
-            else if (estado == RESULTADO_PERGUNTA &&
-                tecla == ALLEGRO_KEY_ENTER) {
-
-                /* Avancar para a proxima sala */
-                salaAtual++;
-
-                /* Avancar a fase, ate a ultima fase do banco */
-                if (faseAtual < TOTAL_FASES) {
-                    faseAtual++;
-                }
-
-                /* Preparar inimigo da nova sala */
-                inimigo.x = 600.0f;
-                inimigo.y = 150.0f;
-                inimigo.vida = VIDA_MAX_INIMIGO;
-                inimigo.timer_tiro = 0;
-
-                /* Preparar ameba da nova sala */
-                ameba.x = 200.0f;
-                ameba.y = 150.0f;
-                ameba.vida = 150;
-
-                /* Reposicionar jogador */
-                jogador.x = LARGURA_TELA / 2.0f;
-                jogador.y = ALTURA_TELA / 2.0f;
-                jogador.invulnerabilidade = 0;
-                jogador.tempo_recarga = 0;
-
-                /* Desativar tiros antigos */
-                tiro_inimigo.ativo = false;
-                tiro_jogador.ativo = false;
-
-                melhoriaEscolhida = 0;
-                indicePerguntaAtual = -1;
-                respostaCorreta = false;
-
-                estado = JOGANDO;
-            }
-
-            /* Atirar */
-            if (estado == JOGANDO &&
-                tecla == ALLEGRO_KEY_SPACE &&
-                !tiro_jogador.ativo &&
-                jogador.tempo_recarga == 0) {
-
-                tiro_jogador.ativo = true;
-
-                tiro_jogador.x = jogador.x;
-                tiro_jogador.y = jogador.y;
-
-                tiro_jogador.vx = jogador.direcao_x * 7.0f;
-                tiro_jogador.vy = jogador.direcao_y * 7.0f;
-
-                jogador.tempo_recarga = 12;
+            /* Liberar proxima sala na Sala de Upgrade apertando E */
+            else if (estado == SALA_UPGRADE && tecla == ALLEGRO_KEY_E) {
+                portaAberta = true;
             }
 
             break;
@@ -350,49 +376,83 @@ int main(void) {
 
         case ALLEGRO_EVENT_TIMER:
 
-            if (estado == JOGANDO) {
+            if (estado == JOGANDO || estado == SALA_UPGRADE) {
 
-                /* Movimentacao do jogador */
-                if (teclas[ALLEGRO_KEY_A] || teclas[ALLEGRO_KEY_LEFT]) {
+                /* Movimentacao do jogador apenas com WASD */
+                if (teclas[ALLEGRO_KEY_A]) {
                     jogador.x -= jogador.vel;
-                    jogador.direcao_x = -1.0f;
-                    jogador.direcao_y = 0.0f;
                 }
 
-                if (teclas[ALLEGRO_KEY_D] || teclas[ALLEGRO_KEY_RIGHT]) {
+                if (teclas[ALLEGRO_KEY_D]) {
                     jogador.x += jogador.vel;
-                    jogador.direcao_x = 1.0f;
-                    jogador.direcao_y = 0.0f;
                 }
 
-                if (teclas[ALLEGRO_KEY_W] || teclas[ALLEGRO_KEY_UP]) {
+                if (teclas[ALLEGRO_KEY_W]) {
                     jogador.y -= jogador.vel;
-                    jogador.direcao_x = 0.0f;
-                    jogador.direcao_y = -1.0f;
                 }
 
-                if (teclas[ALLEGRO_KEY_S] || teclas[ALLEGRO_KEY_DOWN]) {
+                if (teclas[ALLEGRO_KEY_S]) {
                     jogador.y += jogador.vel;
-                    jogador.direcao_x = 0.0f;
-                    jogador.direcao_y = 1.0f;
                 }
 
-                /* Limites da tela */
-                if (jogador.x < jogador.tamanho / 2) {
-                    jogador.x = jogador.tamanho / 2;
-                }
+                /* Limites da sala atual (sala cheia vs corredor de upgrade) */
+                float min_x = ESPESSURA_PAREDE + jogador.tamanho / 2.0f;
+                float max_x = LARGURA_TELA - ESPESSURA_PAREDE - jogador.tamanho / 2.0f;
+                float min_y = (estado == SALA_UPGRADE ? CORREDOR_Y_MIN : ESPESSURA_PAREDE) + jogador.tamanho / 2.0f;
+                float max_y = (estado == SALA_UPGRADE ? CORREDOR_Y_MAX : ALTURA_TELA - ESPESSURA_PAREDE) - jogador.tamanho / 2.0f;
 
-                if (jogador.x > LARGURA_TELA - jogador.tamanho / 2) {
-                    jogador.x = LARGURA_TELA - jogador.tamanho / 2;
-                }
+                if (jogador.x < min_x) jogador.x = min_x;
+                if (jogador.x > max_x) jogador.x = max_x;
+                if (jogador.y < min_y) jogador.y = min_y;
+                if (jogador.y > max_y) jogador.y = max_y;
 
-                if (jogador.y < jogador.tamanho / 2) {
-                    jogador.y = jogador.tamanho / 2;
-                }
+                /* Passagem pela porta da direita quando estiver aberta */
+                if (portaAberta &&
+                    jogador.x >= max_x - 2.0f &&
+                    jogador.y >= PORTA_Y_MIN &&
+                    jogador.y <= PORTA_Y_MAX) {
 
-                if (jogador.y > ALTURA_TELA - jogador.tamanho / 2) {
-                    jogador.y = ALTURA_TELA - jogador.tamanho / 2;
+                    if (estado == JOGANDO) {
+                        /* Sai da sala de combate, entra no corredor de upgrade e regenera toda a vida */
+                        estado = SALA_UPGRADE;
+                        portaAberta = false;
+                        jogador.vida = vidaMaximaJogador;
+                        jogador.x = ESPESSURA_PAREDE + jogador.tamanho;
+                        jogador.y = ALTURA_TELA / 2.0f;
+                        limpar_tiros_jogador(tiros_jogador);
+
+                        for (int i = 0; i < MAX_INIMIGOS; i++) {
+                            tiros_inimigos[i].ativo = false;
+                        }
+                    }
+                    else if (estado == SALA_UPGRADE) {
+                        /* Sai do corredor de upgrade e avanca para a proxima sala */
+                        salaAtual++;
+
+                        if (salaAtual <= TOTAL_SALAS_COMBATE) {
+                            iniciar_sala_combate(
+                                salaAtual, &jogador,
+                                inimigos, tiros_inimigos, &qtd_inimigos,
+                                amebas, &qtd_amebas,
+                                tiros_jogador, &portaAberta
+                            );
+                        }
+                        else {
+                            iniciar_sala_boss(
+                                &jogador,
+                                inimigos, tiros_inimigos, &qtd_inimigos,
+                                &qtd_amebas,
+                                tiros_jogador, &portaAberta
+                            );
+                        }
+
+                        estado = JOGANDO;
+                    }
                 }
+            }
+
+            /* Logica de combate e disparo constante com as setas (somente em JOGANDO) */
+            if (estado == JOGANDO) {
 
                 if (jogador.tempo_recarga > 0) {
                     jogador.tempo_recarga--;
@@ -402,133 +462,162 @@ int main(void) {
                     jogador.invulnerabilidade--;
                 }
 
-                /* Colisao com inimigo */
-                if (inimigo.vida > 0 && jogador.invulnerabilidade == 0) {
+                /* Direcao e disparo constante com as setas (estilo The Binding of Isaac) */
+                float tiro_dx = 0.0f;
+                float tiro_dy = 0.0f;
 
-                    float dx = jogador.x - inimigo.x;
-                    float dy = jogador.y - inimigo.y;
-
-                    float limite = (jogador.tamanho + inimigo.tamanho) / 2.0f;
-
-                    if (dx < limite && dx > -limite &&
-                        dy < limite && dy > -limite) {
-
-                        jogador.vida -= 25;
-                        jogador.invulnerabilidade = 90;
-
-                        if (jogador.vida <= 0) {
-                            jogador.vida = 0;
-                            estado = FIM_DE_JOGO;
-                        }
-                    }
+                if (teclas[ALLEGRO_KEY_UP]) {
+                    tiro_dy = -1.0f;
+                }
+                else if (teclas[ALLEGRO_KEY_DOWN]) {
+                    tiro_dy = 1.0f;
+                }
+                else if (teclas[ALLEGRO_KEY_LEFT]) {
+                    tiro_dx = -1.0f;
+                }
+                else if (teclas[ALLEGRO_KEY_RIGHT]) {
+                    tiro_dx = 1.0f;
                 }
 
-                /* Colisao com a ameba */
-                if (ameba.vida > 0 && jogador.invulnerabilidade == 0) {
+                if (tiro_dx != 0.0f || tiro_dy != 0.0f) {
+                    jogador.direcao_x = tiro_dx;
+                    jogador.direcao_y = tiro_dy;
 
-                    float dx = jogador.x - ameba.x;
-                    float dy = jogador.y - ameba.y;
-
-                    float limite = (jogador.tamanho + ameba.tamanho) / 2.0f;
-
-                    if (dx < limite && dx > -limite &&
-                        dy < limite && dy > -limite) {
-
-                        jogador.vida -= 25;
-                        jogador.invulnerabilidade = 90;
-
-                        if (jogador.vida <= 0) {
-                            jogador.vida = 0;
-                            estado = FIM_DE_JOGO;
-                        }
-                    }
-                }
-
-                /* Acoes do inimigo */
-                if (inimigo.vida > 0) {
-
-                    atualizar_inimigo(&inimigo, &jogador, &tiro_inimigo);
-
-                    atualizar_tiro(
-                        &tiro_inimigo,
-                        LARGURA_TELA,
-                        ALTURA_TELA
-                    );
-
-                    if (verificar_colisao(
-                        &tiro_inimigo,
-                        jogador.x,
-                        jogador.y,
-                        jogador.tamanho)) {
-
-                        tiro_inimigo.ativo = false;
-
-                        if (jogador.invulnerabilidade == 0) {
-
-                            jogador.vida -= 25;
-                            jogador.invulnerabilidade = 90;
-
-                            if (jogador.vida <= 0) {
-                                jogador.vida = 0;
-                                estado = FIM_DE_JOGO;
+                    if (jogador.tempo_recarga == 0) {
+                        for (int i = 0; i < MAX_TIROS_JOGADOR; i++) {
+                            if (!tiros_jogador[i].ativo) {
+                                tiros_jogador[i].ativo = true;
+                                tiros_jogador[i].x = jogador.x;
+                                tiros_jogador[i].y = jogador.y;
+                                tiros_jogador[i].vx = tiro_dx * 7.0f;
+                                tiros_jogador[i].vy = tiro_dy * 7.0f;
+                                jogador.tempo_recarga = CADENCIA_TIRO_JOGADOR;
+                                break;
                             }
                         }
                     }
                 }
 
-                /* Acoes da ameba */
-                if (ameba.vida > 0) {
-                    atualizar_ameba(&ameba, &jogador);
-                }
+                /* Atualizar inimigos que atiram e seus projeteis */
+                for (int i = 0; i < qtd_inimigos; i++) {
 
-                /* Atualizacao do tiro do jogador */
-                atualizar_tiro(
-                    &tiro_jogador,
-                    LARGURA_TELA,
-                    ALTURA_TELA
-                );
+                    if (inimigos[i].vida > 0) {
+                        atualizar_inimigo(&inimigos[i], &jogador, &tiros_inimigos[i]);
 
-                /* Tiro atingindo o inimigo */
-                if (inimigo.vida > 0 &&
-                    verificar_colisao(
-                        &tiro_jogador,
-                        inimigo.x,
-                        inimigo.y,
-                        inimigo.tamanho)) {
+                        /* Colisao corpo a corpo */
+                        if (jogador.invulnerabilidade == 0) {
+                            float dx = jogador.x - inimigos[i].x;
+                            float dy = jogador.y - inimigos[i].y;
+                            float limite = (jogador.tamanho + inimigos[i].tamanho) / 2.0f;
 
-                    inimigo.vida -= danoJogador;
-                    tiro_jogador.ativo = false;
+                            if (dx < limite && dx > -limite &&
+                                dy < limite && dy > -limite) {
 
-                    if (inimigo.vida <= 0) {
-                        inimigo.vida = 0;
+                                jogador.vida -= 25;
+                                jogador.invulnerabilidade = 90;
+
+                                if (jogador.vida <= 0) {
+                                    jogador.vida = 0;
+                                    estado = FIM_DE_JOGO;
+                                }
+                            }
+                        }
+                    }
+
+                    /* Atualiza tiro inimigo mesmo se o inimigo ja morreu */
+                    if (tiros_inimigos[i].ativo) {
+                        atualizar_tiro(&tiros_inimigos[i], LARGURA_TELA, ALTURA_TELA);
+
+                        if (estado == JOGANDO &&
+                            verificar_colisao(&tiros_inimigos[i], jogador.x, jogador.y, jogador.tamanho)) {
+
+                            tiros_inimigos[i].ativo = false;
+
+                            if (jogador.invulnerabilidade == 0) {
+                                jogador.vida -= 25;
+                                jogador.invulnerabilidade = 90;
+
+                                if (jogador.vida <= 0) {
+                                    jogador.vida = 0;
+                                    estado = FIM_DE_JOGO;
+                                }
+                            }
+                        }
                     }
                 }
 
-                /* Tiro atingindo a ameba */
-                if (ameba.vida > 0 &&
-                    verificar_colisao(
-                        &tiro_jogador,
-                        ameba.x,
-                        ameba.y,
-                        ameba.tamanho)) {
+                /* Atualizar amebas */
+                for (int i = 0; i < qtd_amebas; i++) {
 
-                    ameba.vida -= danoJogador;
-                    tiro_jogador.ativo = false;
+                    if (amebas[i].vida > 0) {
+                        atualizar_ameba(&amebas[i], &jogador);
 
-                    if (ameba.vida <= 0) {
-                        ameba.vida = 0;
+                        if (estado == JOGANDO && jogador.invulnerabilidade == 0) {
+                            float dx = jogador.x - amebas[i].x;
+                            float dy = jogador.y - amebas[i].y;
+                            float limite = (jogador.tamanho + amebas[i].tamanho) / 2.0f;
+
+                            if (dx < limite && dx > -limite &&
+                                dy < limite && dy > -limite) {
+
+                                jogador.vida -= 25;
+                                jogador.invulnerabilidade = 90;
+
+                                if (jogador.vida <= 0) {
+                                    jogador.vida = 0;
+                                    estado = FIM_DE_JOGO;
+                                }
+                            }
+                        }
                     }
                 }
 
-                /* Fim do combate */
-                if (inimigo.vida <= 0 && ameba.vida <= 0) {
+                /* Atualizar todos os tiros ativos do jogador e testar colisao contra a wave */
+                for (int t = 0; t < MAX_TIROS_JOGADOR; t++) {
+                    if (!tiros_jogador[t].ativo) continue;
 
-                    estado = SALA_MELHORIAS;
+                    atualizar_tiro(&tiros_jogador[t], LARGURA_TELA, ALTURA_TELA);
 
-                    tentativaMelhoriaUsada = false;
-                    melhoriaEscolhida = 0;
-                    indicePerguntaAtual = -1;
-                    respostaCorreta = false;
+                    for (int i = 0; i < qtd_inimigos && tiros_jogador[t].ativo; i++) {
+                        if (inimigos[i].vida > 0 &&
+                            verificar_colisao(&tiros_jogador[t], inimigos[i].x, inimigos[i].y, inimigos[i].tamanho)) {
+
+                            inimigos[i].vida -= danoJogador;
+                            if (inimigos[i].vida < 0) inimigos[i].vida = 0;
+                            tiros_jogador[t].ativo = false;
+                        }
+                    }
+
+                    for (int i = 0; i < qtd_amebas && tiros_jogador[t].ativo; i++) {
+                        if (amebas[i].vida > 0 &&
+                            verificar_colisao(&tiros_jogador[t], amebas[i].x, amebas[i].y, amebas[i].tamanho)) {
+
+                            amebas[i].vida -= danoJogador;
+                            if (amebas[i].vida < 0) amebas[i].vida = 0;
+                            tiros_jogador[t].ativo = false;
+                        }
+                    }
+                }
+
+                /* Verificar se todos os inimigos da sala foram derrotados */
+                if (estado == JOGANDO) {
+                    int inimigosVivos = 0;
+
+                    for (int i = 0; i < qtd_inimigos; i++) {
+                        if (inimigos[i].vida > 0) inimigosVivos++;
+                    }
+                    for (int i = 0; i < qtd_amebas; i++) {
+                        if (amebas[i].vida > 0) inimigosVivos++;
+                    }
+
+                    if (inimigosVivos == 0) {
+                        if (salaAtual == SALA_BOSS) {
+                            estado = VITORIA;
+                        }
+                        else {
+                            portaAberta = true;
+                        }
+                    }
                 }
             }
 
@@ -536,11 +625,10 @@ int main(void) {
             break;
         }
 
-        /* Desenho da tela */
+        /* ================= DESENHO DA TELA ================= */
         if (redesenhar && al_is_event_queue_empty(fila)) {
 
             redesenhar = false;
-
             al_clear_to_color(al_map_rgb(15, 15, 25));
 
             /* MENU INICIAL */
@@ -555,19 +643,19 @@ int main(void) {
                 al_draw_text(
                     fonte, al_map_rgb(0, 255, 100),
                     LARGURA_TELA / 2, 280,
-                    ALLEGRO_ALIGN_CENTER, "ENTER - Iniciar jogo"
+                    ALLEGRO_ALIGN_CENTER, "ENTER - Iniciar / Continuar"
                 );
 
                 al_draw_text(
                     fonte, al_map_rgb(200, 200, 200),
                     LARGURA_TELA / 2, 320,
-                    ALLEGRO_ALIGN_CENTER, "WASD ou SETAS - Mover"
+                    ALLEGRO_ALIGN_CENTER, "WASD - Mover"
                 );
 
                 al_draw_text(
                     fonte, al_map_rgb(0, 150, 255),
                     LARGURA_TELA / 2, 345,
-                    ALLEGRO_ALIGN_CENTER, "ESPACO - Atirar"
+                    ALLEGRO_ALIGN_CENTER, "SETAS - Atirar | E - Liberar sala de upgrade"
                 );
 
                 al_draw_text(
@@ -577,12 +665,96 @@ int main(void) {
                 );
             }
 
-            /* COMBATE */
-            else if (estado == JOGANDO) {
+            /* SALAS DE COMBATE, BOSS E CORREDOR DE UPGRADE */
+            else if (estado == JOGANDO || estado == SALA_UPGRADE) {
+
+                ALLEGRO_COLOR corParede = al_map_rgb(45, 45, 65);
+
+                if (estado == JOGANDO) {
+                    /* Paredes externas da sala de combate/boss */
+                    al_draw_filled_rectangle(0, 0, LARGURA_TELA, ESPESSURA_PAREDE, corParede);
+                    al_draw_filled_rectangle(0, ALTURA_TELA - ESPESSURA_PAREDE, LARGURA_TELA, ALTURA_TELA, corParede);
+                    al_draw_filled_rectangle(0, 0, ESPESSURA_PAREDE, ALTURA_TELA, corParede);
+                    al_draw_filled_rectangle(LARGURA_TELA - ESPESSURA_PAREDE, 0, LARGURA_TELA, ALTURA_TELA, corParede);
+
+                    /* Marca visual da entrada esquerda (salas 2, 3 e Boss) */
+                    if (salaAtual > 1) {
+                        al_draw_filled_rectangle(
+                            0, PORTA_Y_MIN,
+                            ESPESSURA_PAREDE, PORTA_Y_MAX,
+                            al_map_rgb(70, 70, 95)
+                        );
+                    }
+
+                    /* Porta de saida para a sala de upgrade (salas 1, 2 e 3) */
+                    if (salaAtual < SALA_BOSS) {
+                        ALLEGRO_COLOR corPorta = portaAberta
+                            ? al_map_rgb(40, 220, 100)
+                            : al_map_rgb(190, 45, 45);
+
+                        al_draw_filled_rectangle(
+                            LARGURA_TELA - ESPESSURA_PAREDE, PORTA_Y_MIN,
+                            LARGURA_TELA, PORTA_Y_MAX,
+                            corPorta
+                        );
+                    }
+                    else {
+                        /* Detalhe vermelho no fundo da sala do Boss */
+                        al_draw_filled_rectangle(
+                            LARGURA_TELA - ESPESSURA_PAREDE, ESPESSURA_PAREDE,
+                            LARGURA_TELA, ALTURA_TELA - ESPESSURA_PAREDE,
+                            al_map_rgb(140, 25, 25)
+                        );
+                    }
+                }
+                else {
+                    /* Corredor horizontal da sala de upgrade */
+                    al_draw_filled_rectangle(0, 0, LARGURA_TELA, CORREDOR_Y_MIN, corParede);
+                    al_draw_filled_rectangle(0, CORREDOR_Y_MAX, LARGURA_TELA, ALTURA_TELA, corParede);
+                    al_draw_filled_rectangle(0, CORREDOR_Y_MIN, ESPESSURA_PAREDE, CORREDOR_Y_MAX, al_map_rgb(70, 70, 95));
+
+                    /* Porta direita do corredor de upgrade */
+                    ALLEGRO_COLOR corPorta = portaAberta
+                        ? al_map_rgb(40, 220, 100)
+                        : al_map_rgb(220, 170, 40);
+
+                    al_draw_filled_rectangle(
+                        LARGURA_TELA - ESPESSURA_PAREDE, PORTA_Y_MIN,
+                        LARGURA_TELA, PORTA_Y_MAX,
+                        corPorta
+                    );
+
+                    al_draw_text(
+                        fonte, al_map_rgb(80, 255, 130),
+                        LARGURA_TELA / 2, 105,
+                        ALLEGRO_ALIGN_CENTER,
+                        "VIDA RESTAURADA!"
+                    );
+
+                    if (!portaAberta) {
+                        const char* textoProx = (salaAtual == TOTAL_SALAS_COMBATE)
+                            ? "Pressione [E] para liberar a BOSS FIGHT"
+                            : "Pressione [E] para liberar a proxima sala de combate";
+
+                        al_draw_text(
+                            fonte, al_map_rgb(255, 220, 80),
+                            LARGURA_TELA / 2, 145,
+                            ALLEGRO_ALIGN_CENTER,
+                            textoProx
+                        );
+                    }
+                    else {
+                        al_draw_text(
+                            fonte, al_map_rgb(80, 255, 130),
+                            LARGURA_TELA / 2, 145,
+                            ALLEGRO_ALIGN_CENTER,
+                            "Proxima sala liberada! Passe pela porta verde a direita."
+                        );
+                    }
+                }
 
                 /* Jogador piscando durante invulnerabilidade */
                 if (jogador.invulnerabilidade % 10 < 5) {
-
                     al_draw_filled_rectangle(
                         jogador.x - jogador.tamanho / 2,
                         jogador.y - jogador.tamanho / 2,
@@ -610,214 +782,77 @@ int main(void) {
                     al_map_rgb(0, 255, 0)
                 );
 
-                /* Inimigo */
-                if (inimigo.vida > 0) {
+                /* Desenho dos inimigos e tiros (somente em JOGANDO) */
+                if (estado == JOGANDO) {
+                    int inimigosVivos = 0;
 
-                    desenhar_inimigo(&inimigo);
+                    for (int i = 0; i < qtd_inimigos; i++) {
+                        if (inimigos[i].vida > 0) {
+                            inimigosVivos++;
+                            desenhar_inimigo(&inimigos[i]);
 
-                    float barra_x = inimigo.x - inimigo.tamanho / 2;
-                    float barra_y = inimigo.y - inimigo.tamanho / 2 - 10;
+                            float barra_x = inimigos[i].x - inimigos[i].tamanho / 2;
+                            float barra_y = inimigos[i].y - inimigos[i].tamanho / 2 - 10;
 
-                    al_draw_filled_rectangle(
-                        barra_x, barra_y,
-                        barra_x + inimigo.tamanho, barra_y + 5,
-                        al_map_rgb(100, 0, 0)
-                    );
+                            al_draw_filled_rectangle(
+                                barra_x, barra_y,
+                                barra_x + inimigos[i].tamanho, barra_y + 5,
+                                al_map_rgb(100, 0, 0)
+                            );
 
-                    al_draw_filled_rectangle(
-                        barra_x, barra_y,
-                        barra_x + inimigo.tamanho *
-                        (inimigo.vida / 100.0f),
-                        barra_y + 5,
-                        al_map_rgb(255, 0, 0)
-                    );
+                            al_draw_filled_rectangle(
+                                barra_x, barra_y,
+                                barra_x + inimigos[i].tamanho * (inimigos[i].vida / (float)VIDA_MAX_INIMIGO),
+                                barra_y + 5,
+                                al_map_rgb(255, 0, 0)
+                            );
+                        }
 
-                    desenhar_tiro(&tiro_inimigo, 255, 0, 0);
-                }
+                        if (tiros_inimigos[i].ativo) {
+                            desenhar_tiro(&tiros_inimigos[i], 255, 0, 0);
+                        }
+                    }
 
-                /* Ameba */
-                if (ameba.vida > 0) {
-                    desenhar_ameba(&ameba);
-                    desenhar_barra_vida_ameba(&ameba);
-                }
+                    for (int i = 0; i < qtd_amebas; i++) {
+                        if (amebas[i].vida > 0) {
+                            inimigosVivos++;
+                            desenhar_ameba(&amebas[i]);
+                            desenhar_barra_vida_ameba(&amebas[i]);
+                        }
+                    }
 
-                /* Tiro do jogador */
-                desenhar_tiro(&tiro_jogador, 0, 150, 255);
+                    for (int t = 0; t < MAX_TIROS_JOGADOR; t++) {
+                        desenhar_tiro(&tiros_jogador[t], 0, 150, 255);
+                    }
 
-                al_draw_text(
-                    fonte, al_map_rgb(255, 255, 255),
-                    10, 10, 0,
-                    "WASD ou SETAS: mover | ESPACO: atirar | ESC: menu"
-                );
-            }
+                    /* HUD superior */
+                    char hud[128];
+                    if (salaAtual == SALA_BOSS) {
+                        snprintf(hud, sizeof(hud), "BOSS FIGHT (TESTE) | Inimigos restantes: %d", inimigosVivos);
+                    }
+                    else {
+                        snprintf(hud, sizeof(hud), "SALA DE COMBATE %d/%d | Inimigos restantes: %d",
+                            salaAtual, TOTAL_SALAS_COMBATE, inimigosVivos);
+                    }
 
-            /* SALA DE MELHORIAS */
-            else if (estado == SALA_MELHORIAS) {
+                    al_draw_text(fonte, al_map_rgb(255, 255, 255), 12, 10, 0, hud);
 
-                al_draw_text(
-                    fonte, al_map_rgb(255, 255, 255),
-                    LARGURA_TELA / 2, 100,
-                    ALLEGRO_ALIGN_CENTER, "SALA DE MELHORIAS"
-                );
-
-                al_draw_text(
-                    fonte, al_map_rgb(200, 200, 200),
-                    LARGURA_TELA / 2, 160,
-                    ALLEGRO_ALIGN_CENTER, "Escolha uma melhoria:"
-                );
-
-                al_draw_text(
-                    fonte, al_map_rgb(100, 255, 100),
-                    LARGURA_TELA / 2, 240,
-                    ALLEGRO_ALIGN_CENTER,
-                    "1 - Vida extra (+25 de vida)"
-                );
-
-                al_draw_text(
-                    fonte, al_map_rgb(100, 200, 255),
-                    LARGURA_TELA / 2, 290,
-                    ALLEGRO_ALIGN_CENTER,
-                    "2 - Velocidade (+1)"
-                );
-
-                al_draw_text(
-                    fonte, al_map_rgb(255, 200, 100),
-                    LARGURA_TELA / 2, 340,
-                    ALLEGRO_ALIGN_CENTER,
-                    "3 - Dano aumentado (+10)"
-                );
-
-                al_draw_text(
-                    fonte, al_map_rgb(255, 255, 255),
-                    LARGURA_TELA / 2, 430,
-                    ALLEGRO_ALIGN_CENTER,
-                    "Pressione 1, 2 ou 3 para escolher"
-                );
-            }
-
-            /* PERGUNTA */
-            else if (estado == PERGUNTA) {
-
-                al_draw_text(
-                    fonte,
-                    al_map_rgb(255, 255, 255),
-                    LARGURA_TELA / 2,
-                    80,
-                    ALLEGRO_ALIGN_CENTER,
-                    "RESPONDA PARA CONQUISTAR A MELHORIA!"
-                );
-
-                if (indicePerguntaAtual >= 0) {
-
-                    const Pergunta* pergunta =
-                        &bancoPerguntas[indicePerguntaAtual];
-
-                    al_draw_text(
-                        fonte,
-                        al_map_rgb(255, 255, 255),
-                        LARGURA_TELA / 2,
-                        160,
-                        ALLEGRO_ALIGN_CENTER,
-                        pergunta->enunciado
-                    );
-
-                    for (int i = 0; i < TOTAL_ALTERNATIVAS; i++) {
-
-                        char alternativa[300];
-
-                        snprintf(
-                            alternativa,
-                            sizeof(alternativa),
-                            "%d - %s",
-                            i + 1,
-                            pergunta->alternativas[i]
-                        );
-
+                    if (portaAberta && salaAtual < SALA_BOSS) {
                         al_draw_text(
-                            fonte,
-                            al_map_rgb(200, 220, 255),
-                            LARGURA_TELA / 2,
-                            250 + (i * 55),
+                            fonte, al_map_rgb(80, 255, 130),
+                            LARGURA_TELA / 2, ALTURA_TELA - 20,
                             ALLEGRO_ALIGN_CENTER,
-                            alternativa
+                            "Wave derrotada! Va ate a porta verde a direita para a Sala de Upgrade."
                         );
                     }
                 }
-
-                al_draw_text(
-                    fonte,
-                    al_map_rgb(255, 200, 100),
-                    LARGURA_TELA / 2,
-                    500,
-                    ALLEGRO_ALIGN_CENTER,
-                    "Pressione 1, 2, 3 ou 4 para responder"
-                );
-            }
-
-            /* RESULTADO DA PERGUNTA */
-            else if (estado == RESULTADO_PERGUNTA) {
-
-                if (respostaCorreta) {
-
-                    al_draw_text(
-                        fonte,
-                        al_map_rgb(0, 255, 100),
-                        LARGURA_TELA / 2,
-                        160,
-                        ALLEGRO_ALIGN_CENTER,
-                        "RESPOSTA CORRETA!"
-                    );
-
-                    al_draw_text(
-                        fonte,
-                        al_map_rgb(255, 255, 255),
-                        LARGURA_TELA / 2,
-                        220,
-                        ALLEGRO_ALIGN_CENTER,
-                        "Voce conquistou a melhoria!"
-                    );
-                }
                 else {
-
-                    al_draw_text(
-                        fonte,
-                        al_map_rgb(255, 80, 80),
-                        LARGURA_TELA / 2,
-                        160,
-                        ALLEGRO_ALIGN_CENTER,
-                        "RESPOSTA INCORRETA!"
-                    );
-
-                    al_draw_text(
-                        fonte,
-                        al_map_rgb(255, 255, 255),
-                        LARGURA_TELA / 2,
-                        220,
-                        ALLEGRO_ALIGN_CENTER,
-                        "Voce perdeu a oportunidade de melhoria."
-                    );
+                    char hud[128];
+                    snprintf(hud, sizeof(hud), "SALA DE UPGRADE %d/%d", salaAtual, TOTAL_SALAS_COMBATE);
+                    al_draw_text(fonte, al_map_rgb(255, 220, 80), 12, 10, 0, hud);
                 }
 
-                if (indicePerguntaAtual >= 0) {
-
-                    al_draw_text(
-                        fonte,
-                        al_map_rgb(200, 220, 255),
-                        LARGURA_TELA / 2,
-                        310,
-                        ALLEGRO_ALIGN_CENTER,
-                        bancoPerguntas[indicePerguntaAtual].explicacao
-                    );
-                }
-
-                al_draw_text(
-                    fonte,
-                    al_map_rgb(255, 200, 100),
-                    LARGURA_TELA / 2,
-                    450,
-                    ALLEGRO_ALIGN_CENTER,
-                    "ENTER - Ir para o proximo combate"
-                );
+                desenhar_minimapa(salaAtual, estado);
             }
 
             /* FIM DE JOGO */
@@ -843,7 +878,7 @@ int main(void) {
                 al_draw_text(
                     fonte, al_map_rgb(0, 255, 100),
                     LARGURA_TELA / 2, 230,
-                    ALLEGRO_ALIGN_CENTER, "VOCE VENCEU!"
+                    ALLEGRO_ALIGN_CENTER, "VOCE VENCEU A BOSS FIGHT!"
                 );
 
                 al_draw_text(
