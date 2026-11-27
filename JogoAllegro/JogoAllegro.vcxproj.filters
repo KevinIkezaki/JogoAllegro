@@ -24,6 +24,9 @@
     <ClCompile Include="perguntas.c">
       <Filter>Arquivos de Origem</Filter>
     </ClCompile>
+    <ClCompile Include="boss.c">
+      <Filter>Arquivos de Origem</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -33,7 +36,10 @@
       <Filter>Arquivos de Origem</Filter>
     </ClInclude>
     <ClInclude Include="perguntas.h">
-      <Filter>Arquivos de Cabeçalho</Filter>
+      <Filter>Arquivos de Origem</Filter>
+    </ClInclude>
+    <ClInclude Include="boss.h">
+      <Filter>Arquivos de Origem</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
