@@ -10,7 +10,12 @@
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_font.h>
 #include <allegro5/allegro_ttf.h>
+#include <allegro5/allegro_image.h>s
 #include <allegro5/allegro_primitives.h>
+
+/* Imagem de fundo do menu */
+ALLEGRO_BITMAP* fundoMenu = NULL;
+
 
 #define LARGURA_TELA 800
 #define ALTURA_TELA 600
@@ -57,10 +62,16 @@
 #define CORREDOR_Y_MAX 400.0f
 
 /* Area do botao PLAY no menu inicial */
-#define BTN_PLAY_X1 300.0f
-#define BTN_PLAY_Y1 275.0f
-#define BTN_PLAY_X2 500.0f
-#define BTN_PLAY_Y2 335.0f
+#define BTN_PLAY_X1 310.0f
+#define BTN_PLAY_Y1 310.0f
+#define BTN_PLAY_X2 490.0f
+#define BTN_PLAY_Y2 385.0f
+
+/* Area do botao SAIR no menu inicial */
+#define BTN_SAIR_X1 310.0f
+#define BTN_SAIR_Y1 395.0f
+#define BTN_SAIR_X2 490.0f
+#define BTN_SAIR_Y2 470.0f
 
 /* Areas dos 3 cards de upgrade */
 #define CARD_UPG_Y1 185.0f
@@ -472,7 +483,8 @@ ALLEGRO_FONT* carregar_fonte_jogo(int tamanho) {
 int main(void) {
 
     if (!al_init() || !al_install_keyboard() || !al_install_mouse() ||
-        !al_init_primitives_addon() || !al_init_font_addon() || !al_init_ttf_addon()) {
+        !al_init_primitives_addon() || !al_init_font_addon() ||
+        !al_init_ttf_addon() || !al_init_image_addon()) {
 
         fprintf(stderr, "Falha ao iniciar o Allegro ou seus add-ons.\n");
         return 1;
@@ -484,8 +496,17 @@ int main(void) {
     ALLEGRO_TIMER* timer = al_create_timer(1.0 / FPS);
     ALLEGRO_EVENT_QUEUE* fila = al_create_event_queue();
     ALLEGRO_FONT* fonte = carregar_fonte_jogo(15);
+    fundoMenu = al_load_bitmap("assets/tela_inicial.png");
 
-    if (!janela || !timer || !fila || !fonte) {
+    if (!fundoMenu) {
+        fprintf(stderr, "Nao foi possivel carregar a imagem!\n");
+    }
+    else {
+        printf("Imagem carregada com sucesso!\n");
+    }
+
+    if (!janela || !timer || !fila || !fonte || !fundoMenu) {
+        if (fundoMenu) al_destroy_bitmap(fundoMenu);
         if (fonte) al_destroy_font(fonte);
         if (fila) al_destroy_event_queue(fila);
         if (timer) al_destroy_timer(timer);
@@ -576,6 +597,13 @@ int main(void) {
                     estado = estadoAnterior;
                 }
             }
+
+            else if (estado == MENU_INICIAL &&
+                ponto_no_retangulo(mouseX, mouseY,
+                    BTN_SAIR_X1, BTN_SAIR_Y1, BTN_SAIR_X2, BTN_SAIR_Y2)) {
+                rodando = false;
+            }
+
             else if (estado == ESCOLHER_UPGRADE) {
                 for (int i = 0; i < 3; i++) {
                     float cx1 = CARD_UPG_X_INICIAL + i * (CARD_UPG_LARGURA + CARD_UPG_ESPACO);
@@ -965,46 +993,21 @@ int main(void) {
             redesenhar = false;
             al_clear_to_color(al_map_rgb(15, 15, 25));
 
-            /* MENU INICIAL */
-            if (estado == MENU_INICIAL) {
+        /* MENU INICIAL */
+        if (estado == MENU_INICIAL) {
 
-                al_draw_text(
-                    fonte, al_map_rgb(255, 255, 255),
-                    LARGURA_TELA / 2, 170,
-                    ALLEGRO_ALIGN_CENTER, "WHITE CELL WARRIOR"
-                );
+            al_draw_scaled_bitmap(
+                fundoMenu,
+                0, 0,
+                al_get_bitmap_width(fundoMenu),
+                al_get_bitmap_height(fundoMenu),
+                0, 0,
+                LARGURA_TELA,
+                ALTURA_TELA,
+                0
+            );
 
-                bool hoverPlay = ponto_no_retangulo(mouseX, mouseY, BTN_PLAY_X1, BTN_PLAY_Y1, BTN_PLAY_X2, BTN_PLAY_Y2);
-                ALLEGRO_COLOR corBotao = hoverPlay
-                    ? al_map_rgb(60, 230, 120)
-                    : al_map_rgb(35, 165, 85);
-
-                al_draw_filled_rounded_rectangle(
-                    BTN_PLAY_X1, BTN_PLAY_Y1,
-                    BTN_PLAY_X2, BTN_PLAY_Y2,
-                    10, 10, corBotao
-                );
-
-                al_draw_rounded_rectangle(
-                    BTN_PLAY_X1, BTN_PLAY_Y1,
-                    BTN_PLAY_X2, BTN_PLAY_Y2,
-                    10, 10, al_map_rgb(255, 255, 255), 2.0f
-                );
-
-                al_draw_text(
-                    fonte, al_map_rgb(255, 255, 255),
-                    (BTN_PLAY_X1 + BTN_PLAY_X2) / 2.0f,
-                    (BTN_PLAY_Y1 + BTN_PLAY_Y2) / 2.0f - alturaFonte / 2.0f,
-                    ALLEGRO_ALIGN_CENTER,
-                    "PLAY"
-                );
-
-                al_draw_text(
-                    fonte, al_map_rgb(180, 180, 180),
-                    LARGURA_TELA / 2, 390,
-                    ALLEGRO_ALIGN_CENTER, "ESC - Sair"
-                );
-            }
+        }
 
             /* SALAS DE COMBATE, BOSS, CORREDOR DE UPGRADE E OVERLAYS */
             else if (estado == JOGANDO || estado == SALA_UPGRADE || estado == TUTORIAL ||
